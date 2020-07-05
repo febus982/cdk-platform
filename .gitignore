@@ -214,3 +214,4 @@ dmypy.json
 cython_debug/
 
 /cdk.out/
+/.aws_envs/

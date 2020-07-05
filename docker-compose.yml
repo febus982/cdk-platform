@@ -1,0 +1,41 @@
+version: '3.8'
+services:
+
+  aws:
+    image: amazon/aws-cli:latest
+    volumes:
+      - .:/cdk_app
+      - ~/.aws:/root/.aws
+
+  cdk-prod:
+    env_file:
+      - ./.aws_envs/env-prod
+    image: local/cdk:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/cdk_app
+      - ~/.aws:/root/.aws
+
+  cdk-staging:
+    env_file:
+      - ./.aws_envs/env-staging
+    image: local/cdk:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/cdk_app
+      - ~/.aws:/root/.aws
+
+  cdk-lower:
+    env_file:
+      - ./.aws_envs/env-lower
+    image: local/cdk:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/cdk_app
+      - ~/.aws:/root/.aws
