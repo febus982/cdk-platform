@@ -1,0 +1,23 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+"aws-cdk.core" = "~=1.49.0"
+"aws-cdk.aws_ec2" = "~=1.49.0"
+"aws-cdk.aws_eks" = "~=1.49.0"
+"aws-cdk.aws_ecs" = "~=1.49.0"
+"aws-cdk.aws_iam" = "~=1.49.0"
+"pyyaml" = "*"
+"deepmerge" = "*"
+"mkdocs" = "*"
+"mkdocs-material" = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.7"
+
+[scripts]
+platform = "python3 platform/app.py"

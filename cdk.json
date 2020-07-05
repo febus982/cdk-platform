@@ -1,0 +1,4 @@
+{
+    "app": "pipenv run platform",
+    "requireApproval": "never"
+}
