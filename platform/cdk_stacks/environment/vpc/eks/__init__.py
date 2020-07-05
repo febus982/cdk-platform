@@ -40,16 +40,16 @@ class EKSStack(BaseStack):
             vpc_subnets=self._get_control_plane_subnets(scope),  # Control plane subnets
         )
 
-        for profile in scope.environment_config.get('eks', {}).get('fargateProfiles'):
-            eks_cluster.add_fargate_profile(
-                profile.get('name'),
-                selectors=[
-                    Selector(
-                        namespace=profile.get('namespace'),
-                        labels=profile.get('labels')
-                    )
-                ]
-            )
+        # for profile in scope.environment_config.get('eks', {}).get('fargateProfiles', []):
+        #     eks_cluster.add_fargate_profile(
+        #         profile.get('name'),
+        #         selectors=[
+        #             Selector(
+        #                 namespace=profile.get('namespace'),
+        #                 labels=profile.get('labels')
+        #             )
+        #         ]
+        #     )
 
         for fleet in scope.environment_config.get('eks', {}).get('workerNodesFleets'):
             if fleet.get('type') == 'managed':
