@@ -1,6 +1,6 @@
 from typing import List, Dict
 
-from aws_cdk.aws_autoscaling import CfnAutoScalingGroup, AutoScalingGroup
+from aws_cdk.aws_autoscaling import AutoScalingGroup
 from aws_cdk.aws_ec2 import Vpc, SubnetSelection, SubnetType, InstanceType
 from aws_cdk.aws_eks import Cluster, BootstrapOptions
 from aws_cdk.aws_iam import Role, AccountRootPrincipal, ManagedPolicy
@@ -77,15 +77,22 @@ class EKSStack(BaseStack):
         return eks_subnets
 
     def add_managed_fleet(self, cluster: Cluster, fleet: dict):
-        node_group = cluster.add_nodegroup(
-            fleet.get('name'),
-            instance_type=InstanceType(fleet.get('instanceType')),
-            min_size=fleet.get('autoscaling', {}).get('minInstances'),
-            max_size=fleet.get('autoscaling', {}).get('maxInstances'),
-            labels=fleet.get('nodeLabels'),
-        )
+        # For correctly autoscaling the cluster we need our autoscaling groups to not span across AZs
+        # to avoid the AZ Rebalance, hence we create a node group per subnet
 
-        ClusterAutoscaler.attach_cluster_autoscaler_policy_to_role(node_group.role)
+        for counter, subnet in enumerate(cluster.vpc.private_subnets):
+            fleet_id = f'{fleet.get("name")}-{counter}'
+            node_group = cluster.add_nodegroup(
+                id=fleet_id,
+                instance_type=InstanceType(fleet.get('instanceType')),
+                min_size=fleet.get('autoscaling', {}).get('minInstances'),
+                max_size=fleet.get('autoscaling', {}).get('maxInstances'),
+                labels=fleet.get('nodeLabels'),
+                nodegroup_name=f'{fleet.get("name")}-{subnet.availability_zone}',
+                subnets=SubnetSelection(subnets=[subnet])
+            )
+
+            ClusterAutoscaler.attach_cluster_autoscaler_policy_to_role(node_group.role)
 
     def add_asg_fleet(self, scope: BaseApp, cluster: Cluster, cluster_name: str,
                        fleet, fleet_policies: Dict[str, ManagedPolicy]):
@@ -113,8 +120,8 @@ class EKSStack(BaseStack):
 
         # For correctly autoscaling the cluster we need our autoscaling groups to not span across AZs
         # to avoid the AZ Rebalance, hence we create an ASG per subnet
-        for subnet in cluster.vpc.private_subnets:
-            fleet_id = f'{fleet.get("name")}-{subnet.availability_zone}'
+        for counter, subnet in enumerate(cluster.vpc.private_subnets):
+            fleet_id = f'{fleet.get("name")}-{counter}'
             self.eks_fleets[fleet_id]: AutoScalingGroup = cluster.add_capacity(
                 id=scope.prefixed_str(fleet_id),
                 instance_type=InstanceType(fleet.get('instanceType')),
@@ -123,6 +130,7 @@ class EKSStack(BaseStack):
                 bootstrap_options=BootstrapOptions(
                     kubelet_extra_args=kubelet_extra_args,
                 ),
+                vpc_subnets=SubnetSelection(subnets=[subnet])
             )
 
             self._add_userdata_production_tweaks(self.eks_fleets[fleet_id])
@@ -130,8 +138,9 @@ class EKSStack(BaseStack):
             for key, value in node_labels.items():
                 Tag.add(self.eks_fleets[fleet_id], key, value, apply_to_launched_instances=True)
 
-            asg_cfn_construct: CfnAutoScalingGroup = self.eks_fleets[fleet_id].node.find_child("ASG")
-            asg_cfn_construct.vpc_zone_identifier = [subnet.subnet_id]
+            # This should be fixed, to be tested
+            # asg_cfn_construct: CfnAutoScalingGroup = self.eks_fleets[fleet_id].node.find_child("ASG")
+            # asg_cfn_construct.vpc_zone_identifier = [subnet.subnet_id]
 
             # self.attach_iam_policies_to_fleet_role(self.eks_fleets[fleet_id], fleet_policies)
             # self.attach_cluster_autoscaler_policies_to_fleet_role(self.eks_fleets[fleet_id])
