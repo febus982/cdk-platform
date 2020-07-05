@@ -2,7 +2,7 @@ from typing import List, Dict
 
 from aws_cdk.aws_autoscaling import CfnAutoScalingGroup, AutoScalingGroup
 from aws_cdk.aws_ec2 import Vpc, SubnetSelection, SubnetType, InstanceType
-from aws_cdk.aws_eks import Cluster, BootstrapOptions, Selector
+from aws_cdk.aws_eks import Cluster, BootstrapOptions
 from aws_cdk.aws_iam import Role, AccountRootPrincipal, ManagedPolicy
 from aws_cdk.core import Tag
 
@@ -10,6 +10,7 @@ from apps.abstract.base_app import BaseApp
 from cdk_stacks.abstract.base_stack import BaseStack
 from cdk_stacks.environment.vpc.eks.eks_resources.amazon_node_drainer.function.lambda_singleton_resource import \
     AmazonNodeDrainerLambda
+from cdk_stacks.environment.vpc.eks.eks_resources.metrics_server import MetricsServer
 
 
 class EKSStack(BaseStack):
@@ -57,6 +58,8 @@ class EKSStack(BaseStack):
             if fleet.get('type') == 'ASG':
                 raise NotImplementedError("ASG Nodes are not yet implemented")
                 # self.add_asg_fleet(scope, eks_cluster, cluster_name, fleet, {})
+
+        MetricsServer.add_to_cluster(eks_cluster)
 
     def _get_control_plane_subnets(self, scope: BaseApp) -> List[SubnetSelection]:
         """
@@ -344,21 +347,7 @@ class EKSStack(BaseStack):
 #                 heartbeat_timeout=450,
 #             )
 #
-    def _get_cluster_autoscaler_version(self, kubernetes_version: str) -> str:
-        """
-        Maps kubernetes version to cluster-autoscaler image tag. https://github.com/kubernetes/autoscaler/releases
 
-        :param kubernetes_version:
-        :return:
-        """
-        autoscaler_version_registry = {
-            '1.18': 'v1.18.1',
-            '1.17': 'v1.17.2',
-            '1.16': 'v1.16.5',
-            '1.15': 'v1.15.6',
-            '1.14': 'v1.14.8',
-        }
-        return autoscaler_version_registry[kubernetes_version]
 
     def _add_userdata_production_tweaks(self, fleet: AutoScalingGroup):
         # Source of tweaks: https://kubedex.com/90-days-of-aws-eks-in-production
