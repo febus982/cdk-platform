@@ -23,7 +23,7 @@ class MetricsServer:
             resource
         )
 
-        cluster.add_chart(
+        chart = cluster.add_chart(
             'helm-chart-metrics-server',
             release="metrics-server",
             chart="metrics-server",
@@ -36,6 +36,10 @@ class MetricsServer:
                 },
                 "args": [
                     "--kubelet-preferred-address-types=InternalIP"
-                ]
+                ],
+                "rbac": {
+                    "pspEnabled": True,
+                },
             },
-        ).node.add_dependency(namespace)
+        )
+        chart.node.add_dependency(namespace)
