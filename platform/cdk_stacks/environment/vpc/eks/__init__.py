@@ -71,7 +71,7 @@ class EKSStack(BaseStack):
 
         for counter, subnet in enumerate(cluster.vpc.private_subnets):
             fleet_id = f'{fleet.get("name")}-{counter}'
-            node_group = cluster.add_nodegroup(
+            cluster.add_nodegroup(
                 id=fleet_id,
                 instance_type=InstanceType(fleet.get('instanceType')),
                 min_size=fleet.get('autoscaling', {}).get('minInstances'),
@@ -80,8 +80,6 @@ class EKSStack(BaseStack):
                 nodegroup_name=f'{fleet.get("name")}-{subnet.availability_zone}',
                 subnets=SubnetSelection(subnets=[subnet]),
             )
-
-            ClusterAutoscaler.attach_cluster_autoscaler_policy_to_role(node_group.role)
 
 #
 #     def attach_iam_policies_to_fleet_role(self, fleet: AutoScalingGroup, fleet_policies: Dict[str, ManagedPolicy]):

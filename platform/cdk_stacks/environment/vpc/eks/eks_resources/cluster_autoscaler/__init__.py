@@ -25,11 +25,19 @@ class ClusterAutoscaler:
             resource
         )
 
-        cluster.add_chart(
+        sa = cluster.add_service_account(
+            'ClusterAutoscalerServiceAccount',
+            name='cluster-autoscaler',
+            namespace=resource.get('metadata', {}).get('name'),
+        )
+        sa.node.add_dependency(namespace)
+        cls.attach_cluster_autoscaler_policy_to_role(sa.role)
+
+        chart = cluster.add_chart(
             "helm-chart-cluster-autoscaler",
             release="cluster-autoscaler",
             chart="cluster-autoscaler",
-            namespace="cluster-autoscaler",
+            namespace=sa.service_account_namespace,
             repository=cls.HELM_STABLE_REPOSITORY,
             version="7.3.3",
             values={
@@ -47,10 +55,16 @@ class ClusterAutoscaler:
                     "balance-similar-node-groups": "true"
                 },
                 "rbac": {
-                    "create": "true",  # TODO: Implement IAM Role for ServiceAccount
+                    "create": True,
+                    "serviceAccount": {
+                        "name": sa.service_account_name,
+                        "create": False,
+                    },
+                    "pspEnabled": True,
                 },
             },
-        ).node.add_dependency(namespace)
+        )
+        chart.node.add_dependency(sa)
 
     @classmethod
     def _get_cluster_autoscaler_version(cls, kubernetes_version: str) -> str:
