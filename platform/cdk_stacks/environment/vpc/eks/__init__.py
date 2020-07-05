@@ -10,6 +10,7 @@ from apps.abstract.base_app import BaseApp
 from cdk_stacks.abstract.base_stack import BaseStack
 from cdk_stacks.environment.vpc.eks.eks_resources.amazon_node_drainer.function.lambda_singleton_resource import \
     AmazonNodeDrainerLambda
+from cdk_stacks.environment.vpc.eks.eks_resources.cluster_autoscaler import ClusterAutoscaler
 from cdk_stacks.environment.vpc.eks.eks_resources.metrics_server import MetricsServer
 
 
@@ -60,6 +61,7 @@ class EKSStack(BaseStack):
                 # self.add_asg_fleet(scope, eks_cluster, cluster_name, fleet, {})
 
         MetricsServer.add_to_cluster(eks_cluster)
+        ClusterAutoscaler.add_to_cluster(eks_cluster, kubernetes_version)
 
     def _get_control_plane_subnets(self, scope: BaseApp) -> List[SubnetSelection]:
         """
@@ -75,20 +77,22 @@ class EKSStack(BaseStack):
         return eks_subnets
 
     def add_managed_fleet(self, cluster: Cluster, fleet: dict):
-        cluster.add_nodegroup(
+        node_group = cluster.add_nodegroup(
             fleet.get('name'),
             instance_type=InstanceType(fleet.get('instanceType')),
             min_size=fleet.get('autoscaling', {}).get('minInstances'),
             max_size=fleet.get('autoscaling', {}).get('maxInstances'),
-            labels=fleet.get('nodeLabels')
+            labels=fleet.get('nodeLabels'),
         )
+
+        ClusterAutoscaler.attach_cluster_autoscaler_policy_to_role(node_group.role)
 
     def add_asg_fleet(self, scope: BaseApp, cluster: Cluster, cluster_name: str,
                        fleet, fleet_policies: Dict[str, ManagedPolicy]):
         node_labels = fleet.get('nodeLabels', {})
         node_labels["fleetName"] = fleet.get('name')
-        node_labels["cluster-autoscaler-enabled"] = "true"
-        node_labels["cluster-autoscaler-{}".format(cluster_name)] = "owned"
+        node_labels["k8s.io/cluster-autoscaler/enabled"] = "true"
+        node_labels[f"k8s.io/cluster-autoscaler/{cluster_name}"] = "owned"
         node_labels_as_str = ','.join(map('='.join, node_labels.items()))
 
         # Source of tweaks: https://kubedex.com/90-days-of-aws-eks-in-production/
@@ -166,31 +170,7 @@ class EKSStack(BaseStack):
 #         for policy in fleet_policies.values():
 #             fleet.role.add_managed_policy(policy)
 #
-#     def attach_cluster_autoscaler_policies_to_fleet_role(self, fleet: AutoScalingGroup):
-#         """
-#         Attach the inline policies necessary to manage autoscaling using the kubernetes cluster autoscaler
-#
-#         :param fleet:
-#         :return:
-#         """
-#         policies: Dict[str, PolicyStatement] = {
-#             'cluster_autoscaler': PolicyStatement(
-#                 resources=["*"],
-#                 effect=Effect.ALLOW,
-#                 actions=[
-#                     "autoscaling:DescribeAutoScalingGroups",
-#                     "autoscaling:DescribeAutoScalingInstances",
-#                     "autoscaling:DescribeLaunchConfigurations",
-#                     "autoscaling:DescribeTags",
-#                     "autoscaling:SetDesiredCapacity",
-#                     "autoscaling:TerminateInstanceInAutoScalingGroup",
-#                     "ec2:DescribeLaunchTemplateVersions",
-#                 ]
-#             ),
-#         }
-#
-#         for policy in policies.values():
-#             fleet.add_to_role_policy(policy)
+
 #
 #     def attach_external_dns_policies(self, fleet: AutoScalingGroup) -> None:
 #         """
@@ -220,80 +200,6 @@ class EKSStack(BaseStack):
 #         for policy in policies.values():
 #             fleet.add_to_role_policy(policy)
 #
-#     def deploy_autoscaler_resources(self, cluster: Cluster, cluster_name: str, kubernetes_version: str) -> None:
-#         """
-#         Deploys into the EKS cluster the kubernetes cluster autoscaler
-#
-#         :param cluster:
-#         :param cluster_name:
-#         :param kubernetes_version:
-#         :return:
-#         """
-#         with open(
-#                 os.path.join(os.path.dirname(__file__), 'eks_resources', 'cluster_autoscaler', 'namespace.yaml')) as f:
-#             resource = yaml.safe_load(f)
-#         namespace = cluster.add_resource(
-#             '{}-{}'.format(resource.get('kind'), resource.get('metadata', {}).get('name')),
-#             resource
-#         )
-#
-#         cluster.add_chart(
-#             "helm-chart-cluster-autoscaler",
-#             release="cluster-autoscaler",
-#             chart="cluster-autoscaler",
-#             namespace="cluster-autoscaler",
-#             repository=self.HELM_STABLE_REPOSITORY,
-#             version="6.2.0",
-#             values={
-#                 "autoDiscovery": {
-#                     "clusterName": cluster_name,
-#                     "tags": [
-#                         "cluster-autoscaler-enabled",
-#                         f"cluster-autoscaler-{cluster_name}",
-#                     ]
-#                 },
-#                 "cloudProvider": "aws",
-#                 "awsRegion": self.region,
-#                 "image": {
-#                     "tag": self._get_cluster_autoscaler_version(kubernetes_version),
-#                 },
-#                 "rbac": {
-#                     "create": "true",
-#                 },
-#             },
-#         ).node.add_dependency(namespace)
-#
-#     def deploy_metrics_server_resources(self, cluster: Cluster) -> None:
-#         """
-#         Deploys into the EKS cluster the kubernetes metrics server
-#
-#         :param cluster:
-#         :return:
-#         """
-#         with open(
-#                 os.path.join(os.path.dirname(__file__), 'eks_resources', 'metrics_server', 'namespace.yaml')) as f:
-#             resource = yaml.safe_load(f)
-#         namespace = cluster.add_resource(
-#             '{}-{}'.format(resource.get('kind'), resource.get('metadata', {}).get('name')),
-#             resource
-#         )
-#
-#         cluster.add_chart(
-#             'helm-chart-metrics-server',
-#             release="metrics-server",
-#             chart="metrics-server",
-#             namespace="metrics-server",
-#             repository=self.HELM_STABLE_REPOSITORY,
-#             version="2.9.0",
-#             values={
-#                 "image": {
-#                     "tag": "v0.3.6",
-#                 },
-#                 "args": [
-#                     "--kubelet-preferred-address-types=InternalIP"
-#                 ]
-#             },
-#         ).node.add_dependency(namespace)
 #
 #     def deploy_amazon_node_drainer_resources(self, cluster_name: str, eks_cluster: Cluster,
 #                                              fleets: Dict[str, AutoScalingGroup]) -> None:
