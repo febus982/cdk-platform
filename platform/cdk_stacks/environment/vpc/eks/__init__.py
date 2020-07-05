@@ -1,23 +1,16 @@
-from typing import List, Dict
+from typing import List
 
-from aws_cdk.aws_autoscaling import AutoScalingGroup
 from aws_cdk.aws_ec2 import Vpc, SubnetSelection, SubnetType, InstanceType
-from aws_cdk.aws_eks import Cluster, BootstrapOptions
-from aws_cdk.aws_iam import Role, AccountRootPrincipal, ManagedPolicy
-from aws_cdk.core import Tag
+from aws_cdk.aws_eks import Cluster
+from aws_cdk.aws_iam import Role, AccountRootPrincipal
 
 from apps.abstract.base_app import BaseApp
 from cdk_stacks.abstract.base_stack import BaseStack
-from cdk_stacks.environment.vpc.eks.eks_resources.amazon_node_drainer.function.lambda_singleton_resource import \
-    AmazonNodeDrainerLambda
 from cdk_stacks.environment.vpc.eks.eks_resources.cluster_autoscaler import ClusterAutoscaler
 from cdk_stacks.environment.vpc.eks.eks_resources.metrics_server import MetricsServer
 
 
 class EKSStack(BaseStack):
-    HELM_STABLE_REPOSITORY = 'https://kubernetes-charts.storage.googleapis.com/'
-    HELM_EKS_REPOSITORY = 'https://aws.github.io/eks-charts/'
-
     def __init__(self, scope: BaseApp, id: str, vpc: Vpc, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
@@ -54,11 +47,7 @@ class EKSStack(BaseStack):
         #     )
 
         for fleet in scope.environment_config.get('eks', {}).get('workerNodesFleets'):
-            if fleet.get('type') == 'managed':
-                self.add_managed_fleet(eks_cluster, fleet)
-            if fleet.get('type') == 'ASG':
-                raise NotImplementedError("ASG Nodes are not yet implemented")
-                # self.add_asg_fleet(scope, eks_cluster, cluster_name, fleet, {})
+            self.add_managed_fleet(eks_cluster, fleet)
 
         MetricsServer.add_to_cluster(eks_cluster)
         ClusterAutoscaler.add_to_cluster(eks_cluster, kubernetes_version)
@@ -77,8 +66,8 @@ class EKSStack(BaseStack):
         return eks_subnets
 
     def add_managed_fleet(self, cluster: Cluster, fleet: dict):
-        # For correctly autoscaling the cluster we need our autoscaling groups to not span across AZs
-        # to avoid the AZ Rebalance, hence we create a node group per subnet
+        # To correctly sclae the cluster we need our node groups to not span across AZs
+        # to avoid the automatic AZ re-balance, hence we create a node group per subnet
 
         for counter, subnet in enumerate(cluster.vpc.private_subnets):
             fleet_id = f'{fleet.get("name")}-{counter}'
@@ -89,84 +78,11 @@ class EKSStack(BaseStack):
                 max_size=fleet.get('autoscaling', {}).get('maxInstances'),
                 labels=fleet.get('nodeLabels'),
                 nodegroup_name=f'{fleet.get("name")}-{subnet.availability_zone}',
-                subnets=SubnetSelection(subnets=[subnet])
+                subnets=SubnetSelection(subnets=[subnet]),
             )
 
             ClusterAutoscaler.attach_cluster_autoscaler_policy_to_role(node_group.role)
 
-    def add_asg_fleet(self, scope: BaseApp, cluster: Cluster, cluster_name: str,
-                       fleet, fleet_policies: Dict[str, ManagedPolicy]):
-        node_labels = fleet.get('nodeLabels', {})
-        node_labels["fleetName"] = fleet.get('name')
-        node_labels["k8s.io/cluster-autoscaler/enabled"] = "true"
-        node_labels[f"k8s.io/cluster-autoscaler/{cluster_name}"] = "owned"
-        node_labels_as_str = ','.join(map('='.join, node_labels.items()))
-
-        # Source of tweaks: https://kubedex.com/90-days-of-aws-eks-in-production/
-        kubelet_extra_args = ' '.join([
-            # Add node labels
-            f'--node-labels {node_labels_as_str}' if len(node_labels_as_str) else '',
-
-            # Capture resource reservation for kubernetes system daemons like the kubelet, container runtime,
-            # node problem detector, etc.
-            '--kube-reserved cpu=250m,memory=1Gi,ephemeral-storage=1Gi',
-
-            # Capture resources for vital system functions, such as sshd, udev.
-            '--system-reserved cpu=250m,memory=0.2Gi,ephemeral-storage=1Gi',
-
-            # Start evicting pods from this node once these thresholds are crossed.
-            '--eviction-hard memory.available<0.2Gi,nodefs.available<10%',
-        ])
-
-        # For correctly autoscaling the cluster we need our autoscaling groups to not span across AZs
-        # to avoid the AZ Rebalance, hence we create an ASG per subnet
-        for counter, subnet in enumerate(cluster.vpc.private_subnets):
-            fleet_id = f'{fleet.get("name")}-{counter}'
-            self.eks_fleets[fleet_id]: AutoScalingGroup = cluster.add_capacity(
-                id=scope.prefixed_str(fleet_id),
-                instance_type=InstanceType(fleet.get('instanceType')),
-                min_capacity=fleet.get('autoscaling', {}).get('minInstances'),
-                max_capacity=fleet.get('autoscaling', {}).get('maxInstances'),
-                bootstrap_options=BootstrapOptions(
-                    kubelet_extra_args=kubelet_extra_args,
-                ),
-                vpc_subnets=SubnetSelection(subnets=[subnet])
-            )
-
-            self._add_userdata_production_tweaks(self.eks_fleets[fleet_id])
-
-            for key, value in node_labels.items():
-                Tag.add(self.eks_fleets[fleet_id], key, value, apply_to_launched_instances=True)
-
-            # This should be fixed, to be tested
-            # asg_cfn_construct: CfnAutoScalingGroup = self.eks_fleets[fleet_id].node.find_child("ASG")
-            # asg_cfn_construct.vpc_zone_identifier = [subnet.subnet_id]
-
-            # self.attach_iam_policies_to_fleet_role(self.eks_fleets[fleet_id], fleet_policies)
-            # self.attach_cluster_autoscaler_policies_to_fleet_role(self.eks_fleets[fleet_id])
-            # if scope.environment_config.get('eks', {}).get('externalDnsPolicy'):
-            #     self.attach_external_dns_policies(self.eks_fleets[fleet_id])
-
-        # self._enable_cross_fleet_communication(self.eks_fleets)
-#
-#     def _enable_cross_fleet_communication(self, fleets: Dict[str, AutoScalingGroup]):
-#         security_groups: List[SecurityGroup] = []
-#
-#         # list all SGs
-#         for fleet in fleets.values():
-#             sg: SecurityGroup = fleet.node.find_child("InstanceSecurityGroup")
-#             security_groups.append(sg)
-#
-#         # cross-sg rule creation
-#         for sg_target in security_groups:
-#             for sg_source in security_groups:
-#                 rule_found = False
-#                 for rule, value in sg_target.to_ingress_rule_config().items():
-#                     if rule == "sourceSecurityGroupId" and value == sg_source.security_group_id:
-#                         rule_found = True
-#
-#                 if not rule_found:
-#                     sg_target.connections.allow_from(sg_source, Port.all_traffic())
 #
 #     def attach_iam_policies_to_fleet_role(self, fleet: AutoScalingGroup, fleet_policies: Dict[str, ManagedPolicy]):
 #         """
@@ -208,113 +124,3 @@ class EKSStack(BaseStack):
 #
 #         for policy in policies.values():
 #             fleet.add_to_role_policy(policy)
-#
-#
-#     def deploy_amazon_node_drainer_resources(self, cluster_name: str, eks_cluster: Cluster,
-#                                              fleets: Dict[str, AutoScalingGroup]) -> None:
-#         """
-#         Deploys the amazon node drainer resources in the stack and in the EKS cluster
-#
-#         :param eks_cluster:
-#         :param fleets:
-#         :return:
-#         """
-#         for filename in [
-#             'cluster_role.yaml',
-#             'cluster_rolebinding.yaml'
-#         ]:
-#             with open(
-#                     os.path.join(os.path.dirname(__file__), 'eks_resources', 'amazon_node_drainer',
-#                                  filename)) as f:
-#                 resource = yaml.safe_load(f)
-#             eks_cluster.add_resource(
-#                 '{}-{}'.format(resource.get('kind'), resource.get('metadata', {}).get('name')),
-#                 resource
-#             )
-#
-#         Rule(
-#             self,
-#             'AmazonEKSNodeDrainerEventRule',
-#             event_pattern=EventPattern(
-#                 source=["aws.autoscaling"],
-#                 detail_type=["EC2 Instance-terminate Lifecycle Action"],
-#                 detail={
-#                     "AutoScalingGroupName": [x.auto_scaling_group_name for x in self.eks_fleets.values()],
-#                 }
-#             ),
-#             targets=[
-#                 LambdaFunction(AmazonNodeDrainerLambda.get_function(self, cluster_name=cluster_name))
-#             ]
-#         )
-#
-#         eks_cluster.aws_auth.add_role_mapping(
-#             AmazonNodeDrainerLambda.get_function(self, cluster_name=cluster_name).role,
-#             groups=['system:authenticated'],
-#             username='lambda',
-#         )
-#
-#         for fleet_id, fleet in fleets.items():
-#             CfnLifecycleHook(
-#                 self,
-#                 f'TerminationLifeCycle{fleet_id}',
-#                 auto_scaling_group_name=fleet.auto_scaling_group_name,
-#                 lifecycle_transition='autoscaling:EC2_INSTANCE_TERMINATING',
-#                 heartbeat_timeout=450,
-#             )
-#
-
-
-    def _add_userdata_production_tweaks(self, fleet: AutoScalingGroup):
-        # Source of tweaks: https://kubedex.com/90-days-of-aws-eks-in-production
-        fleet.user_data.add_commands(
-            """
-# Sysctl changes
-## Disable IPv6
-cat <<EOF > /etc/sysctl.d/10-disable-ipv6.conf
-# disable ipv6 config
-net.ipv6.conf.all.disable_ipv6 = 1
-net.ipv6.conf.default.disable_ipv6 = 1
-net.ipv6.conf.lo.disable_ipv6 = 1
-EOF""",
-            """
-## Kube network optimisation.
-## Stolen from this guy: https://blog.codeship.com/running-1000-containers-in-docker-swarm/
-cat <<EOF > /etc/sysctl.d/99-kube-net.conf
-# Have a larger connection range available
-net.ipv4.ip_local_port_range=1024 65000
-
-# Reuse closed sockets faster
-net.ipv4.tcp_tw_reuse=1
-net.ipv4.tcp_fin_timeout=15
-
-# The maximum number of "backlogged sockets".  Default is 128.
-net.core.somaxconn=4096
-net.core.netdev_max_backlog=4096
-
-# 16MB per socket - which sounds like a lot,
-# but will virtually never consume that much.
-net.core.rmem_max=16777216
-net.core.wmem_max=16777216
-
-# Various network tunables
-net.ipv4.tcp_max_syn_backlog=20480
-net.ipv4.tcp_max_tw_buckets=400000
-net.ipv4.tcp_no_metrics_save=1
-net.ipv4.tcp_rmem=4096 87380 16777216
-net.ipv4.tcp_syn_retries=2
-net.ipv4.tcp_synack_retries=2
-net.ipv4.tcp_wmem=4096 65536 16777216
-#vm.min_free_kbytes=65536
-
-# Connection tracking to prevent dropped connections (usually issue on LBs)
-net.netfilter.nf_conntrack_max=262144
-net.ipv4.netfilter.ip_conntrack_generic_timeout=120
-net.netfilter.nf_conntrack_tcp_timeout_established=86400
-
-# ARP cache settings for a highly loaded docker swarm
-net.ipv4.neigh.default.gc_thresh1=8096
-net.ipv4.neigh.default.gc_thresh2=12288
-net.ipv4.neigh.default.gc_thresh3=16384
-EOF""",
-            "systemctl restart systemd-sysctl.service"
-        )

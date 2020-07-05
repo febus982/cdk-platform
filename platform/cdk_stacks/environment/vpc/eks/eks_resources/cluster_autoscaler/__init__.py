@@ -43,6 +43,9 @@ class ClusterAutoscaler:
                     "tag": cls._get_cluster_autoscaler_version(kubernetes_version),
                     "pullPolicy": "Always",
                 },
+                "extraArgs": {
+                    "balance-similar-node-groups": "true"
+                },
                 "rbac": {
                     "create": "true",  # TODO: Implement IAM Role for ServiceAccount
                 },
