@@ -7,7 +7,7 @@ from aws_cdk.aws_iam import Role, PolicyStatement, Effect
 
 
 class ClusterAutoscaler:
-    HELM_STABLE_REPOSITORY = 'https://kubernetes-charts.storage.googleapis.com/'
+    HELM_REPOSITORY = 'https://kubernetes-charts.storage.googleapis.com/'
 
     @classmethod
     def add_to_cluster(cls, cluster: Cluster, kubernetes_version: str) -> None:
@@ -31,14 +31,14 @@ class ClusterAutoscaler:
             namespace=resource.get('metadata', {}).get('name'),
         )
         sa.node.add_dependency(namespace)
-        cls.attach_cluster_autoscaler_policy_to_role(sa.role)
+        cls.attach_iam_policies_to_role(sa.role)
 
         chart = cluster.add_chart(
             "helm-chart-cluster-autoscaler",
             release="cluster-autoscaler",
             chart="cluster-autoscaler",
             namespace=sa.service_account_namespace,
-            repository=cls.HELM_STABLE_REPOSITORY,
+            repository=cls.HELM_REPOSITORY,
             version="7.3.3",
             values={
                 "autoDiscovery": {
@@ -84,7 +84,7 @@ class ClusterAutoscaler:
         return autoscaler_version_registry[kubernetes_version]
 
     @classmethod
-    def attach_cluster_autoscaler_policy_to_role(cls, role: Role):
+    def attach_iam_policies_to_role(cls, role: Role):
         """
         Attach the inline policies necessary to manage autoscaling using the kubernetes cluster autoscaler
 

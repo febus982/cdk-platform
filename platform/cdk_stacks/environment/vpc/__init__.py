@@ -42,7 +42,7 @@ class VPCStack(BaseStack):
             max_azs=scope.environment_config.get('vpc', {}).get('maxAZs'),
             enable_dns_hostnames=True,
             enable_dns_support=True,
-            subnet_configuration=self._get_subnet_configuration()
+            subnet_configuration=self._get_subnet_configuration(),
         )
         if scope.environment_config.get('vpc', {}).get('bastionHost', {}).get('enabled'):
             BastionHostLinux(

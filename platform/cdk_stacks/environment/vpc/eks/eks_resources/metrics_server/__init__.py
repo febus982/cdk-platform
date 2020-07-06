@@ -5,7 +5,7 @@ from aws_cdk.aws_eks import Cluster
 
 
 class MetricsServer:
-    HELM_STABLE_REPOSITORY = 'https://kubernetes-charts.storage.googleapis.com/'
+    HELM_REPOSITORY = 'https://kubernetes-charts.storage.googleapis.com/'
 
     @classmethod
     def add_to_cluster(cls, cluster: Cluster) -> None:
@@ -28,7 +28,7 @@ class MetricsServer:
             release="metrics-server",
             chart="metrics-server",
             namespace="metrics-server",
-            repository=cls.HELM_STABLE_REPOSITORY,
+            repository=cls.HELM_REPOSITORY,
             version="2.11.1",
             values={
                 "image": {
