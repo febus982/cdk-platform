@@ -8,6 +8,7 @@ from apps.abstract.base_app import BaseApp
 from cdk_stacks.abstract.base_stack import BaseStack
 from cdk_stacks.environment.vpc.eks.eks_resources.cluster_autoscaler import ClusterAutoscaler
 from cdk_stacks.environment.vpc.eks.eks_resources.external_secrets import ExternalSecrets
+from cdk_stacks.environment.vpc.eks.eks_resources.istio import Istio
 from cdk_stacks.environment.vpc.eks.eks_resources.metrics_server import MetricsServer
 
 
@@ -53,6 +54,7 @@ class EKSStack(BaseStack):
         MetricsServer.add_to_cluster(eks_cluster)
         ClusterAutoscaler.add_to_cluster(eks_cluster, kubernetes_version)
         ExternalSecrets.add_to_cluster(eks_cluster)
+        Istio.add_to_cluster(eks_cluster)
 
     def _get_control_plane_subnets(self, scope: BaseApp) -> List[SubnetSelection]:
         """
