@@ -42,7 +42,7 @@ class VPCStack(BaseStack):
             max_azs=scope.environment_config.get('vpc', {}).get('maxAZs'),
             enable_dns_hostnames=True,
             enable_dns_support=True,
-            subnet_configuration=self._get_subnet_configuration(),
+            subnet_configuration=self._get_subnet_configuration(scope),
         )
         if scope.environment_config.get('vpc', {}).get('bastionHost', {}).get('enabled'):
             BastionHostLinux(
@@ -56,7 +56,7 @@ class VPCStack(BaseStack):
             )
         return vpc
 
-    def _get_subnet_configuration(self) -> List[SubnetConfiguration]:
+    def _get_subnet_configuration(self, scope) -> List[SubnetConfiguration]:
         """
         Get VPC subnets based on desired configuration.
         :param scope:
@@ -80,7 +80,7 @@ class VPCStack(BaseStack):
             subnet_configuration.append(
                 SubnetConfiguration(
                     subnet_type=SubnetType.PUBLIC,
-                    cidr_mask=20,
+                    cidr_mask=scope.environment_config.get('vpc', {}).get('subnetsCIDRSuffixes', {}).get('public'),
                     name='Public'
                 )
             )
@@ -88,15 +88,15 @@ class VPCStack(BaseStack):
             subnet_configuration.append(
                 SubnetConfiguration(
                     subnet_type=SubnetType.PRIVATE,
-                    cidr_mask=19,
+                    cidr_mask=scope.environment_config.get('vpc', {}).get('subnetsCIDRSuffixes', {}).get('private'),
                     name='Private'
                 )
             )
-        if False:
+        if True:
             subnet_configuration.append(
                 SubnetConfiguration(
                     subnet_type=SubnetType.ISOLATED,
-                    cidr_mask=24,
+                    cidr_mask=scope.environment_config.get('vpc', {}).get('subnetsCIDRSuffixes', {}).get('isolated'),
                     name='Isolated'
                 )
             )
