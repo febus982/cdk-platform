@@ -1,6 +1,7 @@
 from typing import List
 
 from aws_cdk.aws_ec2 import SubnetConfiguration, SubnetType, BastionHostLinux, InstanceType, Vpc
+from aws_cdk.core import Tag
 
 from apps.abstract.base_app import BaseApp
 from cdk_stacks.abstract.base_stack import BaseStack
@@ -34,7 +35,7 @@ class VPCStack(BaseStack):
             tags=vpc_filters.get("tags"),
         )
 
-    def create_vpc(self, scope: BaseApp) -> Vpc:
+    def create_vpc(self, scope: BaseApp, eks_enabled: bool = True) -> Vpc:
         vpc = Vpc(
             self,
             scope.prefixed_str(scope.environment_config.get('vpc', {}).get('name')),
@@ -44,6 +45,15 @@ class VPCStack(BaseStack):
             enable_dns_support=True,
             subnet_configuration=self._get_subnet_configuration(scope),
         )
+
+        if eks_enabled:
+            for subnet in vpc.public_subnets:
+                Tag.add(subnet, "kubernetes.io/role/elb", "1")
+                Tag.add(subnet, f"kubernetes.io/cluster/{scope.prefixed_str(scope.environment_config.get('eks', {}).get('clusterName'))}", "shared")
+            for subnet in vpc.private_subnets:
+                Tag.add(subnet, "kubernetes.io/role/internal-elb", "1")
+                Tag.add(subnet, f"kubernetes.io/cluster/{scope.prefixed_str(scope.environment_config.get('eks', {}).get('clusterName'))}", "shared")
+
         if scope.environment_config.get('vpc', {}).get('bastionHost', {}).get('enabled'):
             BastionHostLinux(
                 self,
@@ -89,7 +99,7 @@ class VPCStack(BaseStack):
                 SubnetConfiguration(
                     subnet_type=SubnetType.PRIVATE,
                     cidr_mask=scope.environment_config.get('vpc', {}).get('subnetsCIDRSuffixes', {}).get('private'),
-                    name='Private'
+                    name='Private',
                 )
             )
         if True:
