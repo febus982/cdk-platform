@@ -6,6 +6,7 @@ from aws_cdk.aws_iam import Role, AccountRootPrincipal
 
 from apps.abstract.base_app import BaseApp
 from cdk_stacks.abstract.base_stack import BaseStack
+from cdk_stacks.environment.vpc.eks.eks_resources.cert_manager import CertManager
 from cdk_stacks.environment.vpc.eks.eks_resources.cluster_autoscaler import ClusterAutoscaler
 from cdk_stacks.environment.vpc.eks.eks_resources.external_secrets import ExternalSecrets
 from cdk_stacks.environment.vpc.eks.eks_resources.istio import Istio
@@ -55,6 +56,7 @@ class EKSStack(BaseStack):
         ClusterAutoscaler.add_to_cluster(eks_cluster, kubernetes_version)
         ExternalSecrets.add_to_cluster(eks_cluster)
         Istio.add_to_cluster(eks_cluster)
+        CertManager.add_to_cluster(eks_cluster)
 
     def _get_control_plane_subnets(self, scope: BaseApp) -> List[SubnetSelection]:
         """
