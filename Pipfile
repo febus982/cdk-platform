@@ -4,11 +4,11 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-"aws-cdk.core" = "~=1.49.0"
-"aws-cdk.aws_ec2" = "~=1.49.0"
-"aws-cdk.aws_eks" = "~=1.49.0"
-"aws-cdk.aws_ecs" = "~=1.49.0"
-"aws-cdk.aws_iam" = "~=1.49.0"
+"aws-cdk.core" = "~=1.50.0"
+"aws-cdk.aws_ec2" = "~=1.50.0"
+"aws-cdk.aws_eks" = "~=1.50.0"
+"aws-cdk.aws_ecs" = "~=1.50.0"
+"aws-cdk.aws_iam" = "~=1.50.0"
 "deepmerge" = "*"
 "pyyaml" = "*"
 "mkdocs" = "*"

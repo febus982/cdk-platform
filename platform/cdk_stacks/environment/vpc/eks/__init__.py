@@ -1,7 +1,7 @@
 from typing import List
 
 from aws_cdk.aws_ec2 import Vpc, SubnetSelection, SubnetType, InstanceType
-from aws_cdk.aws_eks import Cluster
+from aws_cdk.aws_eks import Cluster, Selector, KubernetesVersion
 from aws_cdk.aws_iam import Role, AccountRootPrincipal
 
 from apps.abstract.base_app import BaseApp
@@ -31,22 +31,22 @@ class EKSStack(BaseStack):
             cluster_name,
             cluster_name=cluster_name,
             vpc=vpc,
-            version=kubernetes_version,
+            version=KubernetesVersion.of(kubernetes_version),
             default_capacity=0,  # We define later the capacity
             masters_role=cluster_admin_role,
             vpc_subnets=self._get_control_plane_subnets(scope),  # Control plane subnets
         )
 
-        # for profile in scope.environment_config.get('eks', {}).get('fargateProfiles', []):
-        #     eks_cluster.add_fargate_profile(
-        #         profile.get('name'),
-        #         selectors=[
-        #             Selector(
-        #                 namespace=profile.get('namespace'),
-        #                 labels=profile.get('labels')
-        #             )
-        #         ]
-        #     )
+        for profile in scope.environment_config.get('eks', {}).get('fargateProfiles', []):
+            eks_cluster.add_fargate_profile(
+                profile.get('name'),
+                selectors=[
+                    Selector(
+                        namespace=profile.get('namespace'),
+                        labels=profile.get('labels')
+                    )
+                ]
+            )
 
         for fleet in scope.environment_config.get('eks', {}).get('workerNodesFleets'):
             self.add_managed_fleet(eks_cluster, fleet)
