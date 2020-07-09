@@ -1,8 +1,10 @@
 from typing import List
 
-from aws_cdk.aws_ec2 import Vpc, SubnetSelection, SubnetType, InstanceType
-from aws_cdk.aws_eks import Cluster, Selector, KubernetesVersion
+from aws_cdk.aws_autoscaling import AutoScalingGroup
+from aws_cdk.aws_ec2 import Vpc, SubnetSelection, SubnetType, InstanceType, SecurityGroup
+from aws_cdk.aws_eks import Cluster, Selector, KubernetesVersion, BootstrapOptions
 from aws_cdk.aws_iam import Role, AccountRootPrincipal
+from aws_cdk.core import Tag
 
 from apps.abstract.base_app import BaseApp
 from cdk_stacks.abstract.base_stack import BaseStack
@@ -50,7 +52,10 @@ class EKSStack(BaseStack):
             )
 
         for fleet in scope.environment_config.get('eks', {}).get('workerNodesFleets'):
-            self.add_managed_fleet(eks_cluster, fleet)
+            if fleet.get('type') == 'managed':
+                self.add_managed_fleet(eks_cluster, fleet)
+            if fleet.get('type') == 'ASG':
+                self.add_asg_fleet(scope, eks_cluster, fleet)
 
         MetricsServer.add_to_cluster(eks_cluster)
         ClusterAutoscaler.add_to_cluster(eks_cluster, kubernetes_version)
@@ -82,49 +87,147 @@ class EKSStack(BaseStack):
                 instance_type=InstanceType(fleet.get('instanceType')),
                 min_size=fleet.get('autoscaling', {}).get('minInstances'),
                 max_size=fleet.get('autoscaling', {}).get('maxInstances'),
-                labels=fleet.get('nodeLabels'),
+                labels=dict(**fleet.get('nodeLabels', {}), fleetName=fleet.get('name')),
                 nodegroup_name=f'{fleet.get("name")}-{subnet.availability_zone}',
                 subnets=SubnetSelection(subnets=[subnet]),
             )
 
-#
-#     def attach_iam_policies_to_fleet_role(self, fleet: AutoScalingGroup, fleet_policies: Dict[str, ManagedPolicy]):
-#         """
-#         Attach the custom policies to the worker ec2 instances
-#
-#         :param fleet:
-#         :param fleet_policies:
-#         :return:
-#         """
-#         for policy in fleet_policies.values():
-#             fleet.role.add_managed_policy(policy)
-#
+    def add_asg_fleet(self, scope: BaseApp, cluster: Cluster, fleet):
+        node_labels = fleet.get('nodeLabels', {})
+        node_labels["fleetName"] = fleet.get('name')
+        node_labels_as_str = ','.join(map('='.join, node_labels.items()))
 
-#
-#     def attach_external_dns_policies(self, fleet: AutoScalingGroup) -> None:
-#         """
-#         Attach the inline policies necessary to manage route53 zone entries using kubernetes external dns
-#
-#         :param fleet:
-#         :return:
-#         """
-#         policies: Dict[str, PolicyStatement] = {
-#             'route_53': PolicyStatement(
-#                 resources=["*"],
-#                 effect=Effect.ALLOW,
-#                 actions=[
-#                     "route53:ListHostedZones",
-#                     "route53:ListResourceRecordSets",
-#                 ]
-#             ),
-#             'route_53_recordset_change': PolicyStatement(
-#                 resources=["arn:aws:route53:::hostedzone/*"],
-#                 effect=Effect.ALLOW,
-#                 actions=[
-#                     "route53:ChangeResourceRecordSets",
-#                 ]
-#             )
-#         }
-#
-#         for policy in policies.values():
-#             fleet.add_to_role_policy(policy)
+        # Source of tweaks: https://kubedex.com/90-days-of-aws-eks-in-production/
+        kubelet_extra_args = ' '.join([
+            # Add node labels
+            f'--node-labels {node_labels_as_str}' if len(node_labels_as_str) else '',
+
+            # Capture resource reservation for kubernetes system daemons like the kubelet, container runtime,
+            # node problem detector, etc.
+            '--kube-reserved cpu=250m,memory=1Gi,ephemeral-storage=1Gi',
+
+            # Capture resources for vital system functions, such as sshd, udev.
+            '--system-reserved cpu=250m,memory=0.2Gi,ephemeral-storage=1Gi',
+
+            # Start evicting pods from this node once these thresholds are crossed.
+            '--eviction-hard memory.available<0.2Gi,nodefs.available<10%',
+        ])
+
+        cluster_sg = SecurityGroup.from_security_group_id(
+            self,
+            'eks-cluster-sg',
+            security_group_id=cluster.cluster_security_group_id
+        )
+
+        asg_tags = {
+            "k8s.io/cluster-autoscaler/enabled": "true",
+            f"k8s.io/cluster-autoscaler/{cluster.cluster_name}": "owned",
+        }
+
+        # For correctly autoscaling the cluster we need our autoscaling groups to not span across AZs
+        # to avoid the AZ Rebalance, hence we create an ASG per subnet
+        for counter, subnet in enumerate(cluster.vpc.private_subnets):
+            asg: AutoScalingGroup = cluster.add_capacity(
+                id=scope.prefixed_str(f'{fleet.get("name")}-{counter}'),
+                instance_type=InstanceType(fleet.get('instanceType')),
+                min_capacity=fleet.get('autoscaling', {}).get('minInstances'),
+                max_capacity=fleet.get('autoscaling', {}).get('maxInstances'),
+                bootstrap_options=BootstrapOptions(
+                    kubelet_extra_args=kubelet_extra_args,
+                ),
+                spot_price=str(fleet.get('spotPrice')) if fleet.get('spotPrice') else None,
+                vpc_subnets=SubnetSelection(subnets=[subnet]),
+            )
+            self._add_userdata_production_tweaks(asg)
+
+            # There could be a better approach but it's the same used for AWS
+            # managed nodegroups and it will allow communications between nodes
+            # in case of mixed fleets setup
+            asg.add_security_group(cluster_sg)
+
+            for key, value in asg_tags.items():
+                Tag.add(asg, key, value)
+
+    def _add_userdata_production_tweaks(self, fleet: AutoScalingGroup):
+        # Source of tweaks: https://kubedex.com/90-days-of-aws-eks-in-production
+        fleet.user_data.add_commands(
+            """
+# Sysctl changes
+## Disable IPv6
+cat <<EOF > /etc/sysctl.d/10-disable-ipv6.conf
+# disable ipv6 config
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.lo.disable_ipv6 = 1
+EOF""",
+            """
+## Kube network optimisation.
+## Stolen from this guy: https://blog.codeship.com/running-1000-containers-in-docker-swarm/
+cat <<EOF > /etc/sysctl.d/99-kube-net.conf
+# Have a larger connection range available
+net.ipv4.ip_local_port_range=1024 65000
+
+# Reuse closed sockets faster
+net.ipv4.tcp_tw_reuse=1
+net.ipv4.tcp_fin_timeout=15
+
+# The maximum number of "backlogged sockets".  Default is 128.
+net.core.somaxconn=4096
+net.core.netdev_max_backlog=4096
+
+# 16MB per socket - which sounds like a lot,
+# but will virtually never consume that much.
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+
+# Various network tunables
+net.ipv4.tcp_max_syn_backlog=20480
+net.ipv4.tcp_max_tw_buckets=400000
+net.ipv4.tcp_no_metrics_save=1
+net.ipv4.tcp_rmem=4096 87380 16777216
+net.ipv4.tcp_syn_retries=2
+net.ipv4.tcp_synack_retries=2
+net.ipv4.tcp_wmem=4096 65536 16777216
+#vm.min_free_kbytes=65536
+
+# Connection tracking to prevent dropped connections (usually issue on LBs)
+net.netfilter.nf_conntrack_max=262144
+net.ipv4.netfilter.ip_conntrack_generic_timeout=120
+net.netfilter.nf_conntrack_tcp_timeout_established=86400
+
+# ARP cache settings for a highly loaded docker swarm
+net.ipv4.neigh.default.gc_thresh1=8096
+net.ipv4.neigh.default.gc_thresh2=12288
+net.ipv4.neigh.default.gc_thresh3=16384
+EOF""",
+            "systemctl restart systemd-sysctl.service"
+        )
+
+    #
+    #     def attach_external_dns_policies(self, fleet: AutoScalingGroup) -> None:
+    #         """
+    #         Attach the inline policies necessary to manage route53 zone entries using kubernetes external dns
+    #
+    #         :param fleet:
+    #         :return:
+    #         """
+    #         policies: Dict[str, PolicyStatement] = {
+    #             'route_53': PolicyStatement(
+    #                 resources=["*"],
+    #                 effect=Effect.ALLOW,
+    #                 actions=[
+    #                     "route53:ListHostedZones",
+    #                     "route53:ListResourceRecordSets",
+    #                 ]
+    #             ),
+    #             'route_53_recordset_change': PolicyStatement(
+    #                 resources=["arn:aws:route53:::hostedzone/*"],
+    #                 effect=Effect.ALLOW,
+    #                 actions=[
+    #                     "route53:ChangeResourceRecordSets",
+    #                 ]
+    #             )
+    #         }
+    #
+    #         for policy in policies.values():
+    #             fleet.add_to_role_policy(policy)
