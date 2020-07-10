@@ -1,8 +1,7 @@
-import os
-
-import yaml
 from aws_cdk.aws_eks import Cluster
 from aws_cdk.aws_iam import Role, PolicyStatement, Effect, ManagedPolicy
+
+from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import ManifestGenerator
 
 
 class ExternalSecrets:
@@ -16,8 +15,7 @@ class ExternalSecrets:
         :param cluster:
         :return:
         """
-        with open(os.path.join(os.path.dirname(__file__), 'namespace.yaml')) as f:
-            resource = yaml.safe_load(f)
+        resource = ManifestGenerator.namespace_resource('external-secrets')
         namespace = cluster.add_resource(
             f"{resource.get('kind')}-{resource.get('metadata', {}).get('name')}",
             resource
@@ -44,7 +42,7 @@ class ExternalSecrets:
                     "AWS_REGION": cluster.vpc.stack.region,
                 },
                 "rbac": {
-                    "create": False,
+                    "create": True,
                     "serviceAccount": {
                         "name": sa.service_account_name,
                         "create": False,

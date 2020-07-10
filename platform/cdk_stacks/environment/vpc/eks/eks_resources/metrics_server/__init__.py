@@ -1,7 +1,6 @@
-import os
-
-import yaml
 from aws_cdk.aws_eks import Cluster
+
+from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import ManifestGenerator
 
 
 class MetricsServer:
@@ -15,9 +14,7 @@ class MetricsServer:
         :param cluster:
         :return:
         """
-        with open(
-                os.path.join(os.path.dirname(__file__), 'namespace.yaml')) as f:
-            resource = yaml.safe_load(f)
+        resource = ManifestGenerator.namespace_resource('metrics-server')
         namespace = cluster.add_resource(
             f"{resource.get('kind')}-{resource.get('metadata', {}).get('name')}",
             resource

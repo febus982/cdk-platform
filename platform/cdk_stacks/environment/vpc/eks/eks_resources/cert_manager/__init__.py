@@ -1,7 +1,6 @@
-import os
-
-import yaml
 from aws_cdk.aws_eks import Cluster
+
+from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import ManifestGenerator
 
 
 class CertManager:
@@ -17,11 +16,9 @@ class CertManager:
         Deploys cert-manager into the EKS cluster
 
         :param cluster:
-        :param kubernetes_version:
         :return:
         """
-        with open(os.path.join(os.path.dirname(__file__), 'namespace.yaml')) as f:
-            resource = yaml.safe_load(f)
+        resource = ManifestGenerator.namespace_resource('cert-manager')
         namespace = cluster.add_resource(
             f"{resource.get('kind')}-{resource.get('metadata', {}).get('name')}",
             resource

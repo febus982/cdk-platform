@@ -1,9 +1,9 @@
-import os
 from typing import Dict
 
-import yaml
 from aws_cdk.aws_eks import Cluster
 from aws_cdk.aws_iam import Role, PolicyStatement, Effect
+
+from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import ManifestGenerator
 
 
 class ClusterAutoscaler:
@@ -18,8 +18,7 @@ class ClusterAutoscaler:
         :param kubernetes_version:
         :return:
         """
-        with open(os.path.join(os.path.dirname(__file__), 'namespace.yaml')) as f:
-            resource = yaml.safe_load(f)
+        resource = ManifestGenerator.namespace_resource('cluster-autoscaler')
         namespace = cluster.add_resource(
             f"{resource.get('kind')}-{resource.get('metadata', {}).get('name')}",
             resource
