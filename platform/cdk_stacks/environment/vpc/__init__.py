@@ -6,6 +6,7 @@ from aws_cdk.core import Tag
 from apps.abstract.base_app import BaseApp
 from cdk_stacks.abstract.base_stack import BaseStack
 from cdk_stacks.environment.vpc.eks import EKSStack
+from cdk_stacks.environment.vpc.route53 import Route53Stack
 
 
 class VPCStack(BaseStack):
@@ -22,6 +23,8 @@ class VPCStack(BaseStack):
 
         if scope.environment_config.get('eks', {}).get('enabled'):
             EKSStack(scope, 'EKS', vpc)
+
+        Route53Stack(scope, 'Route53', vpc)
 
     def select_vpc(self, scope: BaseApp) -> Vpc:
         vpc_filters = scope.environment_config.get("vpcSelectionFilter", {})
