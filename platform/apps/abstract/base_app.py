@@ -75,4 +75,4 @@ class BaseApp(App):
         )
 
     def prefixed_str(self, value: str) -> str:
-        return f"{self.environment_config.get('projectName')}-{self.environment_name}-{value}"
+        return f"{self.environment_name}-{self.environment_config.get('projectName')}-{value}"
