@@ -6,6 +6,7 @@ from aws_cdk.aws_route53 import PublicHostedZone, PrivateHostedZone
 
 from apps.abstract.base_app import BaseApp
 from cdk_stacks.abstract.base_stack import BaseStack
+from cdk_stacks.environment.vpc.eks.eks_resources.external_dns import ExternalDns
 
 
 class Route53Stack(BaseStack):
@@ -28,8 +29,8 @@ class Route53Stack(BaseStack):
             vpc
         )
 
-        # if zone.get('eksExternalDnsSyncEnabled') and isinstance(eks_cluster, Cluster):
-        #     ExternalDns.add_to_cluster(eks_cluster, created_zone)
+        if zone.get('eksExternalDnsSyncEnabled') and isinstance(eks_cluster, Cluster):
+            ExternalDns.add_to_cluster(eks_cluster, zone_id)
 
     def _create_zone(self, zone_id: str, fqdn: str, private_zone: bool, vpc: Vpc) -> Union[PublicHostedZone, PrivateHostedZone]:
         if private_zone:

@@ -10,12 +10,19 @@ from apps.abstract.base_app import BaseApp
 from cdk_stacks.abstract.base_stack import BaseStack
 from cdk_stacks.environment.vpc.eks.eks_resources.cert_manager import CertManager
 from cdk_stacks.environment.vpc.eks.eks_resources.cluster_autoscaler import ClusterAutoscaler
+from cdk_stacks.environment.vpc.eks.eks_resources.external_dns import ExternalDns
 from cdk_stacks.environment.vpc.eks.eks_resources.external_secrets import ExternalSecrets
 from cdk_stacks.environment.vpc.eks.eks_resources.istio import Istio
 from cdk_stacks.environment.vpc.eks.eks_resources.metrics_server import MetricsServer
 
 
 class EKSStack(BaseStack):
+    __cluster: Cluster
+
+    @property
+    def cluster(self):
+        return self.__cluster
+
     def __init__(self, scope: BaseApp, id: str, vpc: Vpc, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
@@ -29,7 +36,7 @@ class EKSStack(BaseStack):
             assumed_by=AccountRootPrincipal(),
         )
 
-        eks_cluster = Cluster(
+        self.__cluster = eks_cluster = Cluster(
             self,
             cluster_name,
             cluster_name=cluster_name,
@@ -202,32 +209,3 @@ net.ipv4.neigh.default.gc_thresh3=16384
 EOF""",
             "systemctl restart systemd-sysctl.service"
         )
-
-    #
-    #     def attach_external_dns_policies(self, fleet: AutoScalingGroup) -> None:
-    #         """
-    #         Attach the inline policies necessary to manage route53 zone entries using kubernetes external dns
-    #
-    #         :param fleet:
-    #         :return:
-    #         """
-    #         policies: Dict[str, PolicyStatement] = {
-    #             'route_53': PolicyStatement(
-    #                 resources=["*"],
-    #                 effect=Effect.ALLOW,
-    #                 actions=[
-    #                     "route53:ListHostedZones",
-    #                     "route53:ListResourceRecordSets",
-    #                 ]
-    #             ),
-    #             'route_53_recordset_change': PolicyStatement(
-    #                 resources=["arn:aws:route53:::hostedzone/*"],
-    #                 effect=Effect.ALLOW,
-    #                 actions=[
-    #                     "route53:ChangeResourceRecordSets",
-    #                 ]
-    #             )
-    #         }
-    #
-    #         for policy in policies.values():
-    #             fleet.add_to_role_policy(policy)
