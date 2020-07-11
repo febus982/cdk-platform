@@ -21,10 +21,12 @@ class VPCStack(BaseStack):
 
         vpc = self.create_vpc(scope) if vpc_creation_enabled else self.select_vpc(scope)
 
+        eks_stack = None
         if scope.environment_config.get('eks', {}).get('enabled'):
-            EKSStack(scope, 'EKS', vpc)
+            eks_stack = EKSStack(scope, 'EKS', vpc)
 
-        Route53Stack(scope, 'Route53', vpc)
+        for zone in scope.environment_config.get('dnsZones', []):
+            Route53Stack(scope, 'zone', zone, vpc, eks_stack.cluster if eks_stack else None)
 
     def select_vpc(self, scope: BaseApp) -> Vpc:
         vpc_filters = scope.environment_config.get("vpcSelectionFilter", {})
@@ -52,10 +54,14 @@ class VPCStack(BaseStack):
         if eks_enabled:
             for subnet in vpc.public_subnets:
                 Tag.add(subnet, "kubernetes.io/role/elb", "1")
-                Tag.add(subnet, f"kubernetes.io/cluster/{scope.prefixed_str(scope.environment_config.get('eks', {}).get('clusterName'))}", "shared")
+                Tag.add(subnet,
+                        f"kubernetes.io/cluster/{scope.prefixed_str(scope.environment_config.get('eks', {}).get('clusterName'))}",
+                        "shared")
             for subnet in vpc.private_subnets:
                 Tag.add(subnet, "kubernetes.io/role/internal-elb", "1")
-                Tag.add(subnet, f"kubernetes.io/cluster/{scope.prefixed_str(scope.environment_config.get('eks', {}).get('clusterName'))}", "shared")
+                Tag.add(subnet,
+                        f"kubernetes.io/cluster/{scope.prefixed_str(scope.environment_config.get('eks', {}).get('clusterName'))}",
+                        "shared")
 
         if scope.environment_config.get('vpc', {}).get('bastionHost', {}).get('enabled'):
             BastionHostLinux(
@@ -86,8 +92,8 @@ class VPCStack(BaseStack):
           VpcPeeringConnectionId,
           TransitGatewayId,
           InstanceId
-          ] to specify the default route.
-        For now we stick to force Public + Private configuration
+        ] to specify the default route.
+        For now we stick to use the default (NatGateway in the public subnets)
         """
         if True:
             subnet_configuration.append(
