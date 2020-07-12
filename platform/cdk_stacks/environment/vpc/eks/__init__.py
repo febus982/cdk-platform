@@ -67,7 +67,7 @@ class EKSStack(BaseStack):
         MetricsServer.add_to_cluster(eks_cluster)
         ClusterAutoscaler.add_to_cluster(eks_cluster, kubernetes_version)
         ExternalSecrets.add_to_cluster(eks_cluster)
-        Istio.add_to_cluster(eks_cluster)
+        # Istio.add_to_cluster(eks_cluster)
         CertManager.add_to_cluster(eks_cluster)
 
     def _get_control_plane_subnets(self, scope: BaseApp) -> List[SubnetSelection]:

@@ -6,6 +6,8 @@ import yaml
 from aws_cdk.aws_eks import Cluster
 from aws_cdk.core import IConstruct
 
+from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import ManifestGenerator
+
 
 class Istio:
     """
@@ -23,22 +25,32 @@ class Istio:
         :param cluster:
         :return:
         """
+        resource = ManifestGenerator.namespace_resource('istio-system')
+        ns = cluster.add_resource(
+            f"{resource.get('kind')}-{resource.get('metadata', {}).get('name')}",
+            resource
+        )
+
         operator_manifest_path = f'/tmp/istio_manifest.yml'
         cls._generate_istio_operator_manifest(operator_manifest_path)
 
-        istio_ns_resources = cls._apply_manifest(cluster, os.path.join(os.path.dirname(__file__), 'namespace.yaml'))
-        operator_resources = cls._apply_manifest(cluster, operator_manifest_path, istio_ns_resources)
-        cls._apply_manifest(cluster, os.path.join(os.path.dirname(__file__), 'istio_operator_settings.yaml'), operator_resources)
+        operator_resources_list = cls._apply_manifest(cluster, operator_manifest_path, [ns])
+        cls._apply_manifest(cluster, os.path.join(os.path.dirname(__file__), 'istio_operator_settings.yaml'), operator_resources_list)
 
 
     @classmethod
-    def _generate_istio_operator_manifest(cls, destination_path):
+    def _generate_istio_operator_manifest(
+            cls,
+            destination_path: str,
+            operator_namespace: str = 'istio-operator',
+            istio_namespace: str = 'istio-system',
+    ):
         result = subprocess.run([
             'helm', 'template', f'/cdk_app/istio-{os.environ.get("ISTIO_VERSION")}/manifests/charts/istio-operator/',
             '--set', 'hub=docker.io/istio',
             '--set', f'tag={os.environ.get("ISTIO_VERSION")}-distroless',
-            '--set', 'operatorNamespace=istio-operator',
-            '--set', 'istioNamespace=istio-system',
+            '--set', f'operatorNamespace={operator_namespace}',
+            '--set', f'istioNamespace={istio_namespace}',
         ], capture_output=True)
         manifest_file = open(destination_path, "w")
         manifest_file.write(result.stdout.decode())
@@ -57,20 +69,18 @@ class Istio:
         resource_list = []
         namespace = None
         with open(manifest_path) as f:
-            resources = yaml.safe_load_all(f)
-            for resource in resources:
+            for resource in yaml.safe_load_all(f):
                 if resource.get('kind') == 'Namespace':
                     namespace = cluster.add_resource(
                         f"{resource.get('kind')}-{resource.get('metadata', {}).get('name')}",
-                        resource
+                        resource,
                     )
                     for dependency in dependencies:
                         namespace.node.add_dependency(dependency)
                 resource_list.append(namespace)
 
         with open(manifest_path) as f:
-            resources = yaml.safe_load_all(f)
-            for resource in resources:
+            for resource in yaml.safe_load_all(f):
                 if resource.get('kind') != 'Namespace':
                     res = cluster.add_resource(
                         f"{resource.get('kind')}-{resource.get('metadata', {}).get('name')}",
