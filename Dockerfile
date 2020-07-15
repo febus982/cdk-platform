@@ -9,11 +9,20 @@ RUN apt-get update && \
     apt-get install -y \
     curl \
     make  \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
+
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl \
+    && chmod +x ./kubectl \
+    && mv ./kubectl /usr/local/bin/kubectl
+
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
+    && unzip awscliv2.zip \
+    && ./aws/install
 
 ADD https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz .
 RUN tar -zxvf helm-v${HELM_VERSION}-linux-amd64.tar.gz

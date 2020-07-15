@@ -17,6 +17,7 @@ services:
     volumes:
       - .:/cdk_app
       - ~/.aws:/root/.aws
+      - ~/.kube:/root/.kube
     entrypoint: make
 
   cdk-staging:
@@ -29,6 +30,7 @@ services:
     volumes:
       - .:/cdk_app
       - ~/.aws:/root/.aws
+      - ~/.kube:/root/.kube
     entrypoint: make
 
   cdk-lower:
@@ -41,4 +43,5 @@ services:
     volumes:
       - .:/cdk_app
       - ~/.aws:/root/.aws
+      - ~/.kube:/root/.kube
     entrypoint: make
