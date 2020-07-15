@@ -1,13 +1,17 @@
 FROM python:3.7-slim
 
 ENV CDK_VERSION=1.51.0
-ENV ISTIO_VERSION=1.6.4
+ENV ISTIO_VERSION=1.6.5
 ENV HELM_VERSION=3.2.4
 
 WORKDIR /cdk_app
 RUN apt-get update && \
-    apt-get install -y curl && \
-    curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
+    apt-get install -y \
+    curl \
+    make  \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
