@@ -12,6 +12,7 @@ from cdk_stacks.environment.vpc.eks.eks_resources.cert_manager import CertManage
 from cdk_stacks.environment.vpc.eks.eks_resources.cluster_autoscaler import ClusterAutoscaler
 from cdk_stacks.environment.vpc.eks.eks_resources.external_dns import ExternalDns
 from cdk_stacks.environment.vpc.eks.eks_resources.external_secrets import ExternalSecrets
+from cdk_stacks.environment.vpc.eks.eks_resources.fluentd import Fluentd
 from cdk_stacks.environment.vpc.eks.eks_resources.grafana import Grafana
 from cdk_stacks.environment.vpc.eks.eks_resources.istio import Istio
 from cdk_stacks.environment.vpc.eks.eks_resources.metrics_server import MetricsServer
@@ -66,13 +67,22 @@ class EKSStack(BaseStack):
             if fleet.get('type') == 'ASG':
                 self.add_asg_fleet(scope, eks_cluster, fleet)
 
+        # Base cluster applications
         MetricsServer.add_to_cluster(eks_cluster)
         ClusterAutoscaler.add_to_cluster(eks_cluster, kubernetes_version)
         ExternalSecrets.add_to_cluster(eks_cluster)
-        # Istio.add_to_cluster(eks_cluster)
         CertManager.add_to_cluster(eks_cluster)
+        # Istio.add_to_cluster(eks_cluster)
+
+        # Monitoring applications
         PrometheusOperator.add_to_cluster(eks_cluster)
         Grafana.add_to_cluster(eks_cluster)
+
+        # Logging & tracing applications
+        Fluentd.add_to_cluster(eks_cluster)
+        # Loki ?
+        # Elasticsearch + Kibana ?
+        # Jaeger
 
     def _get_control_plane_subnets(self, scope: BaseApp) -> List[SubnetSelection]:
         """
