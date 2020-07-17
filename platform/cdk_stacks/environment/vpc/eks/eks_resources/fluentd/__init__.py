@@ -1,10 +1,10 @@
 from aws_cdk.aws_eks import Cluster
 
 
-# https://github.com/bitnami/charts/tree/master/bitnami/fluentd
-
-
 class Fluentd:
+    """
+    https://github.com/bitnami/charts/tree/master/bitnami/fluentd
+    """
     HELM_REPOSITORY = 'https://charts.bitnami.com/bitnami'
 
     @classmethod

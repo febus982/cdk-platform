@@ -7,6 +7,9 @@ from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import Mani
 
 
 class ClusterAutoscaler:
+    """
+    https://github.com/helm/charts/tree/master/stable/cluster-autoscaler
+    """
     HELM_REPOSITORY = 'https://kubernetes-charts.storage.googleapis.com/'
 
     @classmethod

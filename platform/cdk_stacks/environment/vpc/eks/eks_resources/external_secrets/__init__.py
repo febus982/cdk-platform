@@ -5,6 +5,10 @@ from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import Mani
 
 
 class ExternalSecrets:
+    """
+    https://github.com/godaddy/kubernetes-external-secrets/tree/master/charts/kubernetes-external-secrets
+    https://github.com/godaddy/kubernetes-external-secrets
+    """
     HELM_REPOSITORY = 'https://godaddy.github.io/kubernetes-external-secrets/'
 
     @classmethod

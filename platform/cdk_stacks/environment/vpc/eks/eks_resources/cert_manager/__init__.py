@@ -5,8 +5,8 @@ from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import Mani
 
 class CertManager:
     """
-    https://hub.helm.sh/charts/jetstack/cert-manager
     https://github.com/jetstack/cert-manager/blob/master/deploy/charts/cert-manager/values.yaml
+    https://hub.helm.sh/charts/jetstack/cert-manager
     """
     HELM_REPOSITORY = 'https://charts.jetstack.io'
 

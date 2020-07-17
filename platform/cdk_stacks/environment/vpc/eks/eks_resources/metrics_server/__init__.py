@@ -4,6 +4,9 @@ from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import Mani
 
 
 class MetricsServer:
+    """
+    https://github.com/helm/charts/tree/master/stable/metrics-server
+    """
     HELM_REPOSITORY = 'https://kubernetes-charts.storage.googleapis.com/'
 
     @classmethod

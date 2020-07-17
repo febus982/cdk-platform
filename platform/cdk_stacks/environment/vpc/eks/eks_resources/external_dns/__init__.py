@@ -1,12 +1,14 @@
 from aws_cdk.aws_eks import Cluster, ServiceAccount
 from aws_cdk.aws_iam import Role, PolicyStatement, Effect
 
-# https://github.com/bitnami/charts/tree/master/bitnami/external-dns
-# https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/istio.md
 from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import ManifestGenerator
 
 
 class ExternalDns:
+    """
+    https://github.com/bitnami/charts/tree/master/bitnami/external-dns
+    https://github.com/kubernetes-sigs/external-dns/blob/master/docs/tutorials/istio.md
+    """
     HELM_REPOSITORY = 'https://charts.bitnami.com/bitnami'
 
     @classmethod

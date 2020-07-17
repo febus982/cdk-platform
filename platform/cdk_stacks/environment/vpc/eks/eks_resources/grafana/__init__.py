@@ -1,10 +1,12 @@
 from aws_cdk.aws_eks import Cluster, ServiceAccount
 
-# https://github.com/bitnami/charts/tree/master/bitnami/grafana
 from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import ManifestGenerator
 
 
 class Grafana:
+    """
+    https://github.com/bitnami/charts/tree/master/bitnami/grafana
+    """
     HELM_REPOSITORY = 'https://charts.bitnami.com/bitnami'
 
     @classmethod

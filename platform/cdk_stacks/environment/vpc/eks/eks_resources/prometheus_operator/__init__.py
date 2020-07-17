@@ -1,10 +1,12 @@
 from aws_cdk.aws_eks import Cluster, ServiceAccount
 
-# https://github.com/bitnami/charts/tree/master/bitnami/prometheus-operator
 from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import ManifestGenerator
 
 
 class PrometheusOperator:
+    """
+    https://github.com/bitnami/charts/tree/master/bitnami/prometheus-operator
+    """
     HELM_REPOSITORY = 'https://charts.bitnami.com/bitnami'
 
     @classmethod
