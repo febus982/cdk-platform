@@ -14,6 +14,7 @@ from cdk_stacks.environment.vpc.eks.eks_resources.external_dns import ExternalDn
 from cdk_stacks.environment.vpc.eks.eks_resources.external_secrets import ExternalSecrets
 from cdk_stacks.environment.vpc.eks.eks_resources.fluentd import Fluentd
 from cdk_stacks.environment.vpc.eks.eks_resources.grafana import Grafana
+from cdk_stacks.environment.vpc.eks.eks_resources.loki import Loki
 from cdk_stacks.environment.vpc.eks.eks_resources.metrics_server import MetricsServer
 from cdk_stacks.environment.vpc.eks.eks_resources.prometheus_operator import PrometheusOperator
 
@@ -81,8 +82,7 @@ class EKSStack(BaseStack):
 
         # Logging & tracing applications
         Fluentd.add_to_cluster(eks_cluster)
-        # Loki ?
-        # Elasticsearch + Kibana ?
+        Loki.add_to_cluster(eks_cluster)
         # Jaeger
 
     def _get_control_plane_subnets(self, scope: BaseApp) -> List[SubnetSelection]:
