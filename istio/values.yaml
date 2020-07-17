@@ -1,0 +1,7 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+spec:
+  tag: 1.6.5-distroless
+  addonComponents:
+    prometheus:
+      enabled: false
