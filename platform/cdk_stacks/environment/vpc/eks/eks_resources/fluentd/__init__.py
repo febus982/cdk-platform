@@ -44,7 +44,7 @@ class Fluentd:
             version="1.2.7",
             values={
                 "aggregator": {
-                    "replicaCount": 2,
+                    "replicaCount": 1,
                 },
                 "serviceAccount": {
                     "create": True,

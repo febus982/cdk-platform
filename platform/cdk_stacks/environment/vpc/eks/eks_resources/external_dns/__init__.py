@@ -56,14 +56,14 @@ class ExternalDns:
                     'service',
                     'ingress',
                     'istio-gateway',
-                    # 'istio-virtualservice',
+                    # 'istio-virtualservice',  # Soon to be released, keep an eye on releases
                 ],
                 "txtOwnerId": cluster.cluster_name,
                 "rbac": {
                     "create": True,
                     "pspEnabled": True,
                 },
-                "replicas": 3,
+                "replicas": 1,
                 "metrics": {
                     "enabled": True,
                 },
