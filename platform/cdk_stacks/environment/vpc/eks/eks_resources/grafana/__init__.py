@@ -10,12 +10,12 @@ class Grafana:
     HELM_REPOSITORY = 'https://charts.bitnami.com/bitnami'
 
     @classmethod
-    def add_to_cluster(cls, cluster: Cluster) -> None:
+    def add_to_cluster(cls, cluster: Cluster, env_domain: str = 'example.com') -> None:
         """
         Deploys into the EKS cluster the external secrets manager
 
+        :param env_domain:
         :param cluster:
-        :param zone_id:
         :return:
         """
         namespace = "grafana"
@@ -31,13 +31,14 @@ class Grafana:
             namespace=resource.get('metadata', {}).get('name'),
         )
         sa.node.add_dependency(ns)
-        cls._create_chart_release(cluster, sa)
+        cls._create_chart_release(cluster, sa, env_domain)
 
     @classmethod
     def _create_chart_release(
             cls,
             cluster: Cluster,
             service_account: ServiceAccount,
+            env_domain: str,
     ) -> None:
         chart = cluster.add_chart(
             "helm-chart-grafana",
@@ -50,6 +51,18 @@ class Grafana:
                 "serviceAccount": {
                     "create": False,
                     "name": service_account.service_account_name,
+                },
+                "ingress": {
+                    "enabled": True,
+                    "hosts": [
+                        {
+                            "paths": ["/*"],
+                            "name": f"grafana.{env_domain}",
+                            "backend": {
+                                "servicePort": 3000,
+                            }
+                        },
+                    ],
                 },
             },
         )

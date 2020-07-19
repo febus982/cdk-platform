@@ -2,14 +2,14 @@
 diff:
 	cdk diff || true
 
-deploy: deploy-cdk deploy-apps
+deploy-cluster: deploy-cdk
 
-destroy: destroy-apps destroy-cdk
+destroy-cluster: destroy-apps destroy-cdk
 #########################
 
 ######### APPS ##########
 update-kubeconfig:
-	$(python scripts/update_kubeconfig_from_cdk_output.py)
+	eval "python scripts/update_kubeconfig_from_cdk_output.py"
 
 deploy-apps: update-kubeconfig deploy-istio
 
