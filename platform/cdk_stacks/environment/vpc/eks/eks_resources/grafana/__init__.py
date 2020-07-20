@@ -54,13 +54,13 @@ class Grafana:
                 },
                 "ingress": {
                     "enabled": True,
+                    "annotations": {
+                        "kubernetes.io/ingress.class": "istio",
+                    },
                     "hosts": [
                         {
                             "paths": ["/*"],
                             "name": f"grafana.{env_domain}",
-                            "backend": {
-                                "servicePort": 3000,
-                            }
                         },
                     ],
                 },
