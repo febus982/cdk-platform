@@ -25,8 +25,8 @@ class VPCStack(BaseStack):
         if scope.environment_config.get('eks', {}).get('enabled'):
             eks_stack = EKSStack(scope, 'EKS', vpc)
 
-        for zone in scope.environment_config.get('dnsZones', []):
-            Route53Stack(scope, 'route53', zone, vpc, eks_stack.cluster if eks_stack else None)
+        Route53Stack(scope, 'route53', scope.environment_config.get('dns', {}), vpc,
+                     eks_stack.cluster if eks_stack else None)
 
     def select_vpc(self, scope: BaseApp) -> Vpc:
         vpc_filters = scope.environment_config.get("vpcSelectionFilter", {})

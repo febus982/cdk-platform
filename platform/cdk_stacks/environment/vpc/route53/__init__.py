@@ -10,29 +10,65 @@ from cdk_stacks.environment.vpc.eks.eks_resources.external_dns import ExternalDn
 
 
 class Route53Stack(BaseStack):
-    def __init__(self, scope: BaseApp, id: str, zone: dict, vpc: Vpc, eks_cluster: Cluster = None, **kwargs) -> None:
+    def __init__(self, scope: BaseApp, id: str, dns_config: dict, vpc: Vpc, eks_cluster: Cluster = None,
+                 **kwargs) -> None:
 
-        domain_name = self._calculate_zone_domain(
+        super().__init__(scope, id, **kwargs)
+
+        self._create_environment_main_zones(scope, dns_config, eks_cluster, vpc)
+
+        for zone in dns_config.get("additionalZones", []):
+            zone_domain_name = self._calculate_zone_domain(
+                scope,
+                zone.get('domainName'),
+            )
+            zone_id = self._calculate_zone_identifier(
+                zone_domain_name,
+                private_zone=zone.get("privateZone"),
+            )
+            self._create_zone(
+                zone_id,
+                fqdn=zone_domain_name,
+                private_zone=True,
+                vpc=vpc
+            )
+            if zone.get('eksExternalDnsSyncEnabled') and isinstance(eks_cluster, Cluster):
+                ExternalDns.add_to_cluster(eks_cluster, zone_id)
+
+    def _create_environment_main_zones(self, scope, dns_config, eks_cluster, vpc):
+        main_zone_domain_name = self._calculate_zone_domain(
             scope,
-            zone.get('domainName'),
-            zone.get('domainNameWithPrefix'),
+            dns_config.get('domainName'),
         )
-        zone_id = self._calculate_zone_identifier(
-            domain_name,
-            zone.get('privateZone'),
-        )
-        super().__init__(scope, f"{id}-{zone_id}", **kwargs)
-        created_zone = self._create_zone(
-            zone_id,
-            domain_name,
-            zone.get('privateZone'),
-            vpc
-        )
+        if dns_config.get("privateZone", {}).get("enabled"):
+            zone_id = self._calculate_zone_identifier(
+                main_zone_domain_name,
+                private_zone=True,
+            )
+            self._create_zone(
+                zone_id,
+                fqdn=main_zone_domain_name,
+                private_zone=True,
+                vpc=vpc
+            )
+            if dns_config.get("privateZone", {}).get('eksExternalDnsSyncEnabled') and isinstance(eks_cluster, Cluster):
+                ExternalDns.add_to_cluster(eks_cluster, zone_id)
+        if dns_config.get("publicZone", {}).get("enabled"):
+            zone_id = self._calculate_zone_identifier(
+                main_zone_domain_name,
+                private_zone=False,
+            )
+            self._create_zone(
+                zone_id,
+                fqdn=main_zone_domain_name,
+                private_zone=False,
+                vpc=vpc
+            )
+            if dns_config.get("privateZone", {}).get('eksExternalDnsSyncEnabled') and isinstance(eks_cluster, Cluster):
+                ExternalDns.add_to_cluster(eks_cluster, zone_id)
 
-        if zone.get('eksExternalDnsSyncEnabled') and isinstance(eks_cluster, Cluster):
-            ExternalDns.add_to_cluster(eks_cluster, zone_id)
-
-    def _create_zone(self, zone_id: str, fqdn: str, private_zone: bool, vpc: Vpc) -> Union[PublicHostedZone, PrivateHostedZone]:
+    def _create_zone(self, zone_id: str, fqdn: str, private_zone: bool, vpc: Vpc) -> Union[
+        PublicHostedZone, PrivateHostedZone]:
         if private_zone:
             return PrivateHostedZone(
                 self,
@@ -47,11 +83,8 @@ class Route53Stack(BaseStack):
                 zone_name=fqdn,
             )
 
-    def _calculate_zone_domain(self, scope: BaseApp, domain: str, with_prefix: bool) -> str:
-        if with_prefix:
-            return f"{scope.environment_name}.{scope.environment_config.get('projectName')}.{domain}"
-        else:
-            return domain
+    def _calculate_zone_domain(self, scope: BaseApp, domain: str) -> str:
+        return f"{scope.environment_name}.{scope.environment_config.get('projectName')}.{domain}"
 
     def _calculate_zone_identifier(self, fqdn: str, private_zone: bool):
         return f"{fqdn.replace('.', '-')}-{'private' if private_zone else 'public'}"
