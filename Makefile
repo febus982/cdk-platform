@@ -9,7 +9,7 @@ destroy-cluster: destroy-apps destroy-cdk
 
 ######### APPS ##########
 update-kubeconfig:
-	eval "python scripts/update_kubeconfig_from_cdk_output.py"
+	eval "python scripts/update_kubeconfig_from_cdk_output.py" | bash
 
 deploy-apps: update-kubeconfig deploy-istio
 
