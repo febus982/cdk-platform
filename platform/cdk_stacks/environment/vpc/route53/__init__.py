@@ -10,15 +10,16 @@ from cdk_stacks.environment.vpc.eks.eks_resources.external_dns import ExternalDn
 
 
 class Route53Stack(BaseStack):
-    def __init__(self, scope: BaseApp, id: str, dns_config: dict, vpc: Vpc, eks_cluster: Cluster = None,
+    def __init__(self, scope: BaseApp, id: str, vpc: Vpc, eks_cluster: Cluster = None,
                  **kwargs) -> None:
 
         super().__init__(scope, id, **kwargs)
+        dns_config = scope.environment_config.get('dns', {})
 
         self._create_environment_main_zones(scope, dns_config, eks_cluster, vpc)
 
         for zone in dns_config.get("additionalZones", []):
-            zone_domain_name = self._calculate_zone_domain(
+            zone_domain_name = self.get_zone_fqdn(
                 scope,
                 zone.get('domainName'),
             )
@@ -35,8 +36,8 @@ class Route53Stack(BaseStack):
             if zone.get('eksExternalDnsSyncEnabled') and isinstance(eks_cluster, Cluster):
                 ExternalDns.add_to_cluster(eks_cluster, zone_id)
 
-    def _create_environment_main_zones(self, scope, dns_config, eks_cluster, vpc):
-        main_zone_domain_name = self._calculate_zone_domain(
+    def _create_environment_main_zones(self, scope: BaseApp, dns_config: dict, eks_cluster: Cluster, vpc: Vpc):
+        main_zone_domain_name = self.get_zone_fqdn(
             scope,
             dns_config.get('domainName'),
         )
@@ -83,8 +84,10 @@ class Route53Stack(BaseStack):
                 zone_name=fqdn,
             )
 
-    def _calculate_zone_domain(self, scope: BaseApp, domain: str) -> str:
+    @staticmethod
+    def get_zone_fqdn(scope: BaseApp, domain: str) -> str:
         return f"{scope.environment_name}.{scope.environment_config.get('projectName')}.{domain}"
 
-    def _calculate_zone_identifier(self, fqdn: str, private_zone: bool):
+    @staticmethod
+    def _calculate_zone_identifier(fqdn: str, private_zone: bool):
         return f"{fqdn.replace('.', '-')}-{'private' if private_zone else 'public'}"

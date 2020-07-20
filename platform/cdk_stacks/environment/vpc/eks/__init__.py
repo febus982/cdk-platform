@@ -26,7 +26,7 @@ class EKSStack(BaseStack):
     def cluster(self):
         return self.__cluster
 
-    def __init__(self, scope: BaseApp, id: str, vpc: Vpc, **kwargs) -> None:
+    def __init__(self, scope: BaseApp, id: str, vpc: Vpc, env_fqdn: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
         kubernetes_version = scope.environment_config.get('eks', {}).get('kubernetesVersion')
@@ -78,7 +78,7 @@ class EKSStack(BaseStack):
 
         # Monitoring applications
         PrometheusOperator.add_to_cluster(eks_cluster)
-        Grafana.add_to_cluster(eks_cluster)
+        Grafana.add_to_cluster(eks_cluster, env_fqdn)
 
         # Logging & tracing applications
         Fluentd.add_to_cluster(eks_cluster)
