@@ -15,28 +15,6 @@ class Route53Stack(BaseStack):
 
         super().__init__(scope, id, **kwargs)
         dns_config = scope.environment_config.get('dns', {})
-
-        self._create_environment_main_zones(scope, dns_config, eks_cluster, vpc)
-
-        for zone in dns_config.get("additionalZones", []):
-            zone_domain_name = self.get_zone_fqdn(
-                scope,
-                zone.get('domainName'),
-            )
-            zone_id = self._calculate_zone_identifier(
-                zone_domain_name,
-                private_zone=zone.get("privateZone"),
-            )
-            self._create_zone(
-                zone_id,
-                fqdn=zone_domain_name,
-                private_zone=True,
-                vpc=vpc
-            )
-            if zone.get('eksExternalDnsSyncEnabled') and isinstance(eks_cluster, Cluster):
-                ExternalDns.add_to_cluster(eks_cluster, zone_id)
-
-    def _create_environment_main_zones(self, scope: BaseApp, dns_config: dict, eks_cluster: Cluster, vpc: Vpc):
         main_zone_domain_name = self.get_zone_fqdn(
             scope,
             dns_config.get('domainName'),
@@ -52,8 +30,8 @@ class Route53Stack(BaseStack):
                 private_zone=True,
                 vpc=vpc
             )
-            if dns_config.get("privateZone", {}).get('eksExternalDnsSyncEnabled') and isinstance(eks_cluster, Cluster):
-                ExternalDns.add_to_cluster(eks_cluster, zone_id)
+            # if dns_config.get('eksExternalDnsSyncEnabled') and isinstance(eks_cluster, Cluster):
+            #     ExternalDns.add_to_cluster(eks_cluster, ExternalDns.ZoneType.PRIVATE)
         if dns_config.get("publicZone", {}).get("enabled"):
             zone_id = self._calculate_zone_identifier(
                 main_zone_domain_name,
@@ -65,8 +43,8 @@ class Route53Stack(BaseStack):
                 private_zone=False,
                 vpc=vpc
             )
-            if dns_config.get("privateZone", {}).get('eksExternalDnsSyncEnabled') and isinstance(eks_cluster, Cluster):
-                ExternalDns.add_to_cluster(eks_cluster, zone_id)
+            if dns_config.get('eksExternalDnsSyncEnabled') and isinstance(eks_cluster, Cluster):
+                ExternalDns.add_to_cluster(eks_cluster, ExternalDns.ZoneType.PUBLIC)
 
     def _create_zone(self, zone_id: str, fqdn: str, private_zone: bool, vpc: Vpc) -> Union[
         PublicHostedZone, PrivateHostedZone]:

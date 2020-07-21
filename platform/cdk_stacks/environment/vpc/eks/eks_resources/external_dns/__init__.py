@@ -1,3 +1,5 @@
+from enum import Enum
+
 from aws_cdk.aws_eks import Cluster, ServiceAccount
 from aws_cdk.aws_iam import Role, PolicyStatement, Effect
 
@@ -11,16 +13,20 @@ class ExternalDns:
     """
     HELM_REPOSITORY = 'https://charts.bitnami.com/bitnami'
 
+    class ZoneType(Enum):
+        PUBLIC = 'public'
+        PRIVATE = 'private'
+
     @classmethod
-    def add_to_cluster(cls, cluster: Cluster, zone_id: str) -> None:
+    def add_to_cluster(cls, cluster: Cluster, zone_type: ZoneType) -> None:
         """
         Deploys into the EKS cluster the external secrets manager
 
         :param cluster:
-        :param zone_id:
+        :param zone_type:
         :return:
         """
-        namespace = f"external-dns-{zone_id}"
+        namespace = f"external-dns-{zone_type.value}"
         resource = ManifestGenerator.namespace_resource(namespace)
         ns = cluster.add_resource(
             f"{resource.get('kind')}-{resource.get('metadata', {}).get('name')}",
@@ -28,20 +34,20 @@ class ExternalDns:
         )
 
         sa = cluster.add_service_account(
-            f'externalDnsServiceAccount-{zone_id}',
-            name=f'external-dns-{zone_id}',
+            f'externalDnsServiceAccount-{zone_type.value}',
+            name=f'external-dns-{zone_type.value}',
             namespace=resource.get('metadata', {}).get('name'),
         )
         sa.node.add_dependency(ns)
-        cls.attach_iam_policies_to_role(sa.role, zone_id)
+        cls.attach_iam_policies_to_role(sa.role)
 
-        cls._create_chart_release(cluster, sa, zone_id)
+        cls._create_chart_release(cluster, sa, zone_type)
 
     @classmethod
-    def _create_chart_release(cls, cluster: Cluster, service_account: ServiceAccount, zone_id: str) -> None:
+    def _create_chart_release(cls, cluster: Cluster, service_account: ServiceAccount, zone_type: ZoneType) -> None:
         chart = cluster.add_chart(
-            f"helm-chart-external-dns-{zone_id}",
-            release=f"ext-dns-{zone_id}",
+            f"helm-chart-external-dns-{zone_type.value}",
+            release=f"ext-dns-{zone_type.value}",
             chart="external-dns",
             namespace=service_account.service_account_namespace,
             repository=cls.HELM_REPOSITORY,
@@ -49,7 +55,12 @@ class ExternalDns:
             values={
                 "aws": {
                     "region": cluster.vpc.stack.region,
+                    "zoneType": zone_type.value,
+                    # "zoneTags": [
+                    #     f"external-dns-route53-zone={zone_id}",
+                    # ],
                 },
+                "policy": "sync",
                 "serviceAccount": {
                     "name": service_account.service_account_name,
                     "create": False,
@@ -69,16 +80,13 @@ class ExternalDns:
                 "metrics": {
                     "enabled": True,
                 },
-                "annotationFilter": f"external-dns-route53-zone={zone_id}",
-                "zoneIdFilters": [
-                    zone_id,
-                ],
+                "annotationFilter": f"external-dns-route53-{zone_type.value}=true",
             },
         )
         chart.node.add_dependency(service_account)
 
     @classmethod
-    def attach_iam_policies_to_role(cls, role: Role, zone_id: str):
+    def attach_iam_policies_to_role(cls, role: Role):
         """
         Attach the necessary policies to read secrets from SSM and SecretsManager
 
@@ -100,6 +108,7 @@ class ExternalDns:
             effect=Effect.ALLOW,
             actions=[
                 "route53:ChangeResourceRecordSets",
+                "route53:ListTagsForResource",
             ],
         )
         role.add_to_policy(route53_policy)

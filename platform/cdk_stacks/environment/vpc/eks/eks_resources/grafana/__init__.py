@@ -56,6 +56,7 @@ class Grafana:
                     "enabled": True,
                     "annotations": {
                         "kubernetes.io/ingress.class": "istio",
+                        "external-dns-route53-public": "true",
                     },
                     "hosts": [
                         {

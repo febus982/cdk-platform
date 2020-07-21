@@ -22,11 +22,11 @@ class VPCStack(BaseStack):
         vpc = self.create_vpc(scope) if vpc_creation_enabled else self.select_vpc(scope)
 
         eks_stack = None
-        env_domain_name = Route53Stack.get_zone_fqdn(scope, scope.environment_config.get('dns', {}).get("domainName"))
+        env_fqdn = Route53Stack.get_zone_fqdn(scope, scope.environment_config.get('dns', {}).get("domainName"))
         if scope.environment_config.get('eks', {}).get('enabled'):
-            eks_stack = EKSStack(scope, 'EKS', vpc, env_domain_name)
+            eks_stack = EKSStack(scope, 'EKS', vpc=vpc, env_fqdn=env_fqdn)
 
-        Route53Stack(scope, 'route53', vpc, eks_stack.cluster if eks_stack else None)
+        Route53Stack(scope, 'route53', vpc=vpc, eks_cluster=eks_stack.cluster if eks_stack else None)
 
     def select_vpc(self, scope: BaseApp) -> Vpc:
         vpc_filters = scope.environment_config.get("vpcSelectionFilter", {})
