@@ -59,8 +59,20 @@ class Grafana:
                     },
                     "hosts": [
                         {
-                            "paths": ["/*"],
                             "name": f"grafana.{env_domain}",
+                            """
+                            Note: the default implementation uses name for `servicePort`which is not supported 
+                            by istio 1.6, hence we create an additional path until istio will support port names
+                            """
+                            "extraPaths": [
+                                {
+                                    "path": "/*",
+                                    "backend": {
+                                        "serviceName": "grafana",
+                                        "servicePort": 3000,
+                                    },
+                                },
+                            ]
                         },
                     ],
                 },
