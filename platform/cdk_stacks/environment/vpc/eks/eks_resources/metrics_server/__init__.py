@@ -5,9 +5,9 @@ from cdk_stacks.environment.vpc.eks.eks_resources.manifest_generator import Mani
 
 class MetricsServer:
     """
-    https://github.com/helm/charts/tree/master/stable/metrics-server
+    https://github.com/bitnami/charts/tree/master/bitnami/metrics-server
     """
-    HELM_REPOSITORY = 'https://kubernetes-charts.storage.googleapis.com/'
+    HELM_REPOSITORY = 'https://charts.bitnami.com/bitnami'
 
     @classmethod
     def add_to_cluster(cls, cluster: Cluster) -> None:
@@ -29,16 +29,13 @@ class MetricsServer:
             chart="metrics-server",
             namespace="metrics-server",
             repository=cls.HELM_REPOSITORY,
-            version="2.11.1",
+            version="4.2.1",
             values={
-                "image": {
-                    "tag": "v0.3.6",
+                "extraArgs": {
+                    "kubelet-preferred-address-types": "InternalIP",
                 },
-                "args": [
-                    "--kubelet-preferred-address-types=InternalIP"
-                ],
-                "rbac": {
-                    "pspEnabled": True,
+                "apiService": {
+                    "create": True,
                 },
             },
         )
