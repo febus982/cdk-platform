@@ -5,7 +5,7 @@ from apps.abstract.base_app import BaseApp
 
 class BaseStack(core.Stack):
     def __init__(self, scope: BaseApp, id: str, **kwargs) -> None:
-        super().__init__(scope, scope.prefixed_str(id), **kwargs)
+        super().__init__(scope, scope.prefixed_str(id), env=scope.platform_account_env, **kwargs)
         self._apply_tags(scope)
 
     def _apply_tags(self, scope) -> None:

@@ -2,7 +2,7 @@ import os
 import typing
 
 import yaml
-from aws_cdk.core import App
+from aws_cdk.core import App, Environment
 from deepmerge import Merger
 
 
@@ -13,7 +13,8 @@ class BaseApp(App):
     _config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config')
     _default_config_path = os.path.join(os.path.dirname(__file__), '..', 'default_config')
 
-    def __init__(self, *, auto_synth: typing.Optional[bool] = None,
+    def __init__(self, *, platform_account_env: Environment, users_account_env: Environment,
+                 auto_synth: typing.Optional[bool] = None,
                  context: typing.Optional[typing.Mapping[str, str]] = None, outdir: typing.Optional[str] = None,
                  runtime_info: typing.Optional[bool] = None, stack_traces: typing.Optional[bool] = None,
                  tree_metadata: typing.Optional[bool] = None) -> None:
@@ -22,6 +23,8 @@ class BaseApp(App):
         self.environment_config = {}
 
         self.stacks = {}
+        self.platform_account_env = platform_account_env
+        self.users_account_env = users_account_env
         self._set_environment(os.getenv("CIRCLE_BRANCH", "env-test"))
         self._parse_default_config()
         self._parse_custom_config_files()

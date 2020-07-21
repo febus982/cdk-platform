@@ -12,12 +12,13 @@ class Platform(BaseApp):
                  context: typing.Optional[typing.Mapping[str, str]] = None, outdir: typing.Optional[str] = None,
                  runtime_info: typing.Optional[bool] = None, stack_traces: typing.Optional[bool] = None,
                  tree_metadata: typing.Optional[bool] = None) -> None:
-        super().__init__(auto_synth=auto_synth, context=context, outdir=outdir, runtime_info=runtime_info,
+        super().__init__(platform_account_env=platform_account_env, users_account_env=users_account_env,
+                         auto_synth=auto_synth, context=context, outdir=outdir, runtime_info=runtime_info,
                          stack_traces=stack_traces, tree_metadata=tree_metadata)
 
-        self.generate_platform_stacks(platform_account_env, users_account_env.account)
+        self.generate_platform_stacks()
 
-    def generate_platform_stacks(self, env: Environment, users_account_principal_id: str):
+    def generate_platform_stacks(self):
         VPCStack(
             self,
             'VPC',
