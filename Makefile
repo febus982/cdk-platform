@@ -13,7 +13,7 @@ update-kubeconfig:
 
 deploy-apps: update-kubeconfig deploy-istio
 
-destroy-apps: destroy-istio
+destroy-apps: update-kubeconfig destroy-istio
 #########################
 
 ######## ISTIO ##########
